@@ -69,11 +69,11 @@ placeholder_mapa = st.empty()
 
 ontem = datetime.now() - timedelta(days=1)
 amanha = datetime.now() + timedelta(days=1)
-arquivo_ontem_csv = 'saida_' + ontem.strftime('%Y-%m-%d') + '.csv'
-arquivo_amanha_csv = 'saida_' + amanha.strftime('%Y-%m-%d') + '.csv'
+arquivo_ontem_csv = 'saida_' + ontem.strftime('%Y-%m-%d') + '.xls'
+arquivo_amanha_csv = 'saida_' + amanha.strftime('%Y-%m-%d') + '.xls'
 
-nome_arquivo_csv = 'saida_' + datetime.now().strftime('%Y-%m-%d') + '.csv'
-arquivo_csv = st.file_uploader("Carregar CSV de Saídas (" + nome_arquivo_csv + ")", type=["csv"])
+nome_arquivo_csv = 'saida_' + datetime.now().strftime('%Y-%m-%d') + '.xls'
+arquivo_csv = st.file_uploader("Carregar XLS de Saídas (" + nome_arquivo_csv + ")", type=['xls', 'xlsx'])
 
 def formatar_diferenca(diferenca):
     prefixo = 'Atraso de '
@@ -90,9 +90,43 @@ def formatar_diferencaMenor(diferencaMenor):
     return f'<font color="green">{saida}</font>'
 
 if (arquivo_csv) and ((nome_arquivo_csv == arquivo_csv.name) or (arquivo_ontem_csv == arquivo_csv.name) or (arquivo_amanha_csv == arquivo_csv.name)):
-    df_csv = pd.read_csv(arquivo_csv)
-    print (df_csv)
-    
+    datasaida = arquivo_csv.name[6:16]
+    df_csv = pd.read_excel(arquivo_csv)
+
+    df_csv = df_csv.loc[:, ~df_csv.isin([' : ']).all()]
+    df_csv = df_csv.dropna(axis=1, how='all')
+    df_csv = df_csv.dropna(axis=0, how='all')
+
+    primeira_coluna = df_csv.columns[0]
+    df_csv = df_csv.dropna(subset=[primeira_coluna])
+
+    df_csv = df_csv[~df_csv[primeira_coluna].astype(str).str.strip().str.lower().isin(['veículo'])]
+    df_csv = df_csv[~df_csv[primeira_coluna].astype(str).str.strip().str.lower().isin(['quantidade de horários'])]
+
+    df_csv = df_csv.drop(df_csv.columns[[1, 2, 6, 7, 8, 9, 10, 11, 12]], axis=1)
+    df_csv = df_csv.drop(df_csv.columns[[2]], axis=1)
+
+    df_csv = df_csv.drop(df_csv.columns[[3]], axis=1)
+    df_csv = df_csv[df_csv[df_csv.columns[2]].notna()]
+
+    df_csv[df_csv.columns[0]] = "30" + df_csv[df_csv.columns[0]].astype(str)
+
+    segunda_coluna = df_csv.columns[1]
+    df_csv[segunda_coluna] = pd.to_datetime(df_csv[segunda_coluna])
+
+    # Definir data final e data base extraída da própria coluna (linha 0, por exemplo)
+    data_a_somar = pd.to_datetime(datasaida).date()
+    base_date = df_csv[segunda_coluna].iloc[0].date()  # ← aqui a substituição dinâmica
+
+    # Calcular diferença e somar a todos os valores da coluna
+    delta = data_a_somar - base_date
+    df_csv[segunda_coluna] = df_csv[segunda_coluna] + delta
+    df_csv[segunda_coluna] = df_csv[segunda_coluna].dt.strftime("%Y-%m-%d %H:%M")
+
+    df_csv.columns = ['veiculo', 'horario', 'motorista', 'linha'][:len(df_csv.columns)]
+
+    print(df_csv)
+
     i = 0
     while True:
         try:
@@ -130,9 +164,7 @@ if (arquivo_csv) and ((nome_arquivo_csv == arquivo_csv.name) or (arquivo_ontem_c
                     df_merged = pd.merge(df_view, df_csv, on='veiculo', how='outer')
                     df_merged = df_merged.dropna()
 
-                    dentro = (df_merged['sentido'] == 'dentro').sum()
-
-                    df_merged = df_merged.drop(columns=["sentido"])
+                    df_merged = df_merged.drop(columns=["sentido"]).rename(columns={"horario": "horasaida"})
                     df_merged['horasaida'] = pd.to_datetime(df_merged['horasaida'])
                     
                     hora_atual = datetime.now()
@@ -144,6 +176,14 @@ if (arquivo_csv) and ((nome_arquivo_csv == arquivo_csv.name) or (arquivo_ontem_c
                     df_merged = df_merged.drop(columns=["horaatual", "diferenca"])
                     df_merged['horasaida'] = df_merged['horasaida'].dt.strftime('%Y-%m-%d %H:%M')
                     df_final = df_merged.sort_values("horasaida")
+
+                    df_final["horasaida"] = pd.to_datetime(df_final["horasaida"], format="%Y-%m-%d %H:%M")
+                    limite = hora_atual - timedelta(hours=3)
+                    df_final = df_final[df_final["horasaida"] >= limite]
+
+                    df_final['horasaida'] = df_final['horasaida'].dt.strftime('%Y-%m-%d %H:%M')
+                    
+                    dentro = df_final.shape[0]
 
                     with placeholder_tabela.container():
                         st.markdown('<h3>📡 saidaPyJ / Saída de veículos em ' + arquivo_csv.name[6:6+10] + '</h3>', unsafe_allow_html=True)

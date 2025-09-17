@@ -1,4 +1,7 @@
-openai==1.64.0
+streamlit
+pandas
+xlrd==2.0.2
+numpy
 keyboard
 psutil
 dotenv
