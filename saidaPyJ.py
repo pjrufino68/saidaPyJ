@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import time
 from datetime import datetime, timedelta
+import pytz
 
 import os
 import psutil
@@ -75,6 +76,8 @@ arquivo_amanha_csv = 'saida_' + amanha.strftime('%Y-%m-%d') + '.xls'
 nome_arquivo_csv = 'saida_' + datetime.now().strftime('%Y-%m-%d') + '.xls'
 arquivo_csv = st.file_uploader("Carregar XLS de Saídas (" + nome_arquivo_csv + ")", type=['xls', 'xlsx'])
 
+fuso_horario = pytz.timezone('America/Sao_Paulo')
+
 def formatar_diferenca(diferenca):
     prefixo = 'Atraso de '
     horas = abs(int(diferenca.total_seconds() // 3600))
@@ -121,7 +124,7 @@ if (arquivo_csv) and ((nome_arquivo_csv == arquivo_csv.name) or (arquivo_ontem_c
     # Calcular diferença e somar a todos os valores da coluna
     delta = data_a_somar - base_date
     df_csv[segunda_coluna] = df_csv[segunda_coluna] + delta
-    df_csv[segunda_coluna] = df_csv[segunda_coluna].dt.strftime("%Y-%m-%d %H:%M")
+    #df_csv[segunda_coluna] = df_csv[segunda_coluna].dt.strftime("%Y-%m-%d %H:%M")
 
     df_csv.columns = ['veiculo', 'horario', 'motorista', 'linha'][:len(df_csv.columns)]
 
@@ -165,9 +168,11 @@ if (arquivo_csv) and ((nome_arquivo_csv == arquivo_csv.name) or (arquivo_ontem_c
                     df_merged = df_merged.dropna()
 
                     df_merged = df_merged.drop(columns=["sentido"]).rename(columns={"horario": "horasaida"})
-                    df_merged['horasaida'] = pd.to_datetime(df_merged['horasaida'])
-                    
-                    hora_atual = datetime.now()
+                    #df_merged['horasaida'] = pd.to_datetime(df_merged['horasaida'])
+                    df_merged['horasaida'] = df_merged['horasaida'].dt.tz_localize(fuso_horario)
+
+                    hora_atual = datetime.now(fuso_horario)
+
                     df_merged['horaatual'] = hora_atual
 
                     df_merged["diferenca"] = np.where((df_merged['horaatual'] > df_merged['horasaida']), df_merged['horaatual'] - df_merged['horasaida'], df_merged['horasaida'] - df_merged['horaatual'])
@@ -178,7 +183,7 @@ if (arquivo_csv) and ((nome_arquivo_csv == arquivo_csv.name) or (arquivo_ontem_c
                     df_final = df_merged.sort_values("horasaida")
 
                     df_final["horasaida"] = pd.to_datetime(df_final["horasaida"], format="%Y-%m-%d %H:%M")
-                    limite = hora_atual - timedelta(hours=3)
+                    limite = hora_atual.replace(tzinfo=None) - timedelta(hours=3)
                     df_final = df_final[df_final["horasaida"] >= limite]
 
                     df_final['horasaida'] = df_final['horasaida'].dt.strftime('%Y-%m-%d %H:%M')
