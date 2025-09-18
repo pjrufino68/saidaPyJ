@@ -1,7 +1,9 @@
 import streamlit as st
 import requests
 import numpy as np
+import pdfplumber
 import pandas as pd
+import re
 import time
 from datetime import datetime, timedelta
 import pytz
@@ -72,11 +74,11 @@ fuso_horario = pytz.timezone('America/Sao_Paulo')
 
 ontem = datetime.now(fuso_horario) - timedelta(days=1)
 amanha = datetime.now(fuso_horario) + timedelta(days=1)
-arquivo_ontem_csv = 'saida_' + ontem.strftime('%Y-%m-%d') + '.xls'
-arquivo_amanha_csv = 'saida_' + amanha.strftime('%Y-%m-%d') + '.xls'
+arquivo_ontem_csv = 'saida_' + ontem.strftime('%Y-%m-%d') + '.pdf'
+arquivo_amanha_csv = 'saida_' + amanha.strftime('%Y-%m-%d') + '.pdf'
 
-nome_arquivo_csv = 'saida_' + datetime.now(fuso_horario).strftime('%Y-%m-%d') + '.xls'
-arquivo_csv = st.file_uploader("Carregar XLS de Saídas (" + nome_arquivo_csv + ")", type=['xls', 'xlsx'])
+nome_arquivo_csv = 'saida_' + datetime.now(fuso_horario).strftime('%Y-%m-%d') + '.pdf'
+arquivo_csv = st.file_uploader("Carregar PDF de Saídas (" + nome_arquivo_csv + ")", type=['pdf'])
 
 def formatar_diferenca(diferenca):
     prefixo = 'Atraso de '
@@ -98,7 +100,15 @@ def formatar_diferencaMenor(diferencaMenor):
 
 if (arquivo_csv) and ((nome_arquivo_csv == arquivo_csv.name) or (arquivo_ontem_csv == arquivo_csv.name) or (arquivo_amanha_csv == arquivo_csv.name)):
     datasaida = arquivo_csv.name[6:16]
-    df_csv = pd.read_excel(arquivo_csv)
+    dados = []
+    with pdfplumber.open(arquivo_csv) as pdf:
+        for pagina in pdf.pages:
+            tabela = pagina.extract_tables()
+            for tabela_page in tabela:
+                for linha in tabela_page:
+                    dados.append(linha)
+    df_csv = pd.DataFrame(dados[1:], columns=dados[1])
+    df_csv.columns = ['veiculo', 'nulo1', 'horario','nulo2', 'motorista', 'nulo3', 'nulo4','nulo5', 'nulo6', 'nulo7', 'linha'][:len(df_csv.columns)]
 
     df_csv = df_csv.loc[:, ~df_csv.isin([' : ']).all()]
     df_csv = df_csv.dropna(axis=1, how='all')
@@ -110,11 +120,7 @@ if (arquivo_csv) and ((nome_arquivo_csv == arquivo_csv.name) or (arquivo_ontem_c
     df_csv = df_csv[~df_csv[primeira_coluna].astype(str).str.strip().str.lower().isin(['veículo'])]
     df_csv = df_csv[~df_csv[primeira_coluna].astype(str).str.strip().str.lower().isin(['quantidade de horários'])]
 
-    df_csv = df_csv.drop(df_csv.columns[[1, 2, 6, 7, 8, 9, 10, 11, 12]], axis=1)
-    df_csv = df_csv.drop(df_csv.columns[[2]], axis=1)
-
-    df_csv = df_csv.drop(df_csv.columns[[3]], axis=1)
-    df_csv = df_csv[df_csv[df_csv.columns[2]].notna()]
+    df_csv = df_csv.drop(df_csv.columns[[1, 3, 5, 6, 7, 8, 9]], axis=1)
 
     df_csv[df_csv.columns[0]] = "30" + df_csv[df_csv.columns[0]].astype(str)
 
@@ -128,9 +134,6 @@ if (arquivo_csv) and ((nome_arquivo_csv == arquivo_csv.name) or (arquivo_ontem_c
     # Calcular diferença e somar a todos os valores da coluna
     delta = data_a_somar - base_date
     df_csv[segunda_coluna] = df_csv[segunda_coluna] + delta
-    #df_csv[segunda_coluna] = df_csv[segunda_coluna].dt.strftime("%Y-%m-%d %H:%M")
-
-    df_csv.columns = ['veiculo', 'horario', 'motorista', 'linha'][:len(df_csv.columns)]
 
     print(df_csv)
 
@@ -172,7 +175,6 @@ if (arquivo_csv) and ((nome_arquivo_csv == arquivo_csv.name) or (arquivo_ontem_c
                     df_merged = df_merged.dropna()
 
                     df_merged = df_merged.drop(columns=["sentido"]).rename(columns={"horario": "horasaida"})
-                    #df_merged['horasaida'] = pd.to_datetime(df_merged['horasaida'])
                     df_merged['horasaida'] = df_merged['horasaida'].dt.tz_localize(fuso_horario)
 
                     hora_atual = datetime.now(fuso_horario)
