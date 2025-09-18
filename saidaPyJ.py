@@ -68,15 +68,15 @@ headers = {
 placeholder_tabela = st.empty()
 placeholder_mapa = st.empty()
 
-ontem = datetime.now() - timedelta(days=1)
-amanha = datetime.now() + timedelta(days=1)
+fuso_horario = pytz.timezone('America/Sao_Paulo')
+
+ontem = datetime.now(fuso_horario) - timedelta(days=1)
+amanha = datetime.now(fuso_horario) + timedelta(days=1)
 arquivo_ontem_csv = 'saida_' + ontem.strftime('%Y-%m-%d') + '.xls'
 arquivo_amanha_csv = 'saida_' + amanha.strftime('%Y-%m-%d') + '.xls'
 
-nome_arquivo_csv = 'saida_' + datetime.now().strftime('%Y-%m-%d') + '.xls'
+nome_arquivo_csv = 'saida_' + datetime.now(fuso_horario).strftime('%Y-%m-%d') + '.xls'
 arquivo_csv = st.file_uploader("Carregar XLS de Saídas (" + nome_arquivo_csv + ")", type=['xls', 'xlsx'])
-
-fuso_horario = pytz.timezone('America/Sao_Paulo')
 
 def formatar_diferenca(diferenca):
     prefixo = 'Atraso de '
