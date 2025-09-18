@@ -90,7 +90,11 @@ def formatar_diferencaMenor(diferencaMenor):
     horas = abs(int(diferencaMenor.total_seconds() // 3600))
     minutos = abs(int((diferencaMenor.total_seconds() % 3600) // 60))
     saida = f'{prefixo}{horas:02d}:{minutos:02d}'
-    return f'<font color="green">{saida}</font>'
+
+    if saida < 'Saindo em 00:06':
+        return f'<font color="#FFCC00">{saida}</font>'
+    else:
+        return f'<font color="green">{saida}</font>'
 
 if (arquivo_csv) and ((nome_arquivo_csv == arquivo_csv.name) or (arquivo_ontem_csv == arquivo_csv.name) or (arquivo_amanha_csv == arquivo_csv.name)):
     datasaida = arquivo_csv.name[6:16]
